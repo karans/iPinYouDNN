@@ -41,33 +41,35 @@
 <h3>
 <a id="compatibility" class="anchor" href="#compatibility" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Compatibility</h3>
 
-<p>When I recieved my PCIe box, I was concerned that It would take a while to configure OSX with driver modifications. I also was questioning if it would work with Theano, a tensor python library I am writing my code with. </p>
+<p>When I received my PCIe box, I was concerned that It would take a while to configure OSX with driver modifications. I also was questioning if it would work with Theano, a tensor python library I am writing my code with. </p>
 
 <p>In terms of drivers, there setup was much easier than expected, as <a href="https://github.com/goalque/automate-eGPU">goalque</a> already wrote a script that detected the card, pulled the drivers from Nvidia and changed the appropriate IOPCI tunnelling files. When I rebooted the card was recognized!</p>
 
 <p><img src="http://i.imgur.com/1ARjUeV.png%20=400x400" alt="System Info"></p>
 
-<p>The reason why most people use Nvidia cards to run these sort of computations is due to CUDA. CUDA, proprietary to Nvidia, allows users to directly run code directly on the GPU. Many languages and packages targeted towards deep learning have integrated their libaries with CUDA to let users run demanding code on GPUs in the comfort of high level languages such as Python or Lua. Nvidia's cuDNN also optimizes many of the operations that occur during machine learning and have been utlized by libraries, such as Theano, as well. I then continued by installed CUDA (I recommend using the <a href="https://developer.nvidia.com/cuda-downloads">full</a> installation for those who just started) and cuDNN (you need to make a free developer account). </p>
+<p>The reason why most people use Nvidia cards to run these sort of computations is due to CUDA. CUDA, proprietary to Nvidia, allows users to directly run code directly on the GPU. Many languages and packages targeted towards deep learning have integrated their libraries with CUDA to let users run demanding code on GPUs in the comfort of high level languages such as Python or Lua. Nvidia's cuDNN also optimizes many of the operations that occur during machine learning and have been utilized by libraries, such as Theano, as well. I then continued by installed CUDA (I recommend using the <a href="https://developer.nvidia.com/cuda-downloads">full</a> installation for those who just started) and cuDNN (you need to make a free developer account). </p>
 
 <h3>
 <a id="performance-restrictions" class="anchor" href="#performance-restrictions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Performance Restrictions</h3>
 
-<p>While having a portable setup is nice, I knew that there were going to be some restrictions. Since the card was running off of a thunderbolt connections, there are possilibities for bottlenecks, as Thunderbolt 2 maxes out at 2.5 GB/s. From the system configuration above, a card on PCIe 3.0 at 4x would usually be able to transfer at 4 GB/s.</p>
+<p>While having a portable setup is nice, I knew that there were going to be some restrictions. Since the card was running off of a thunderbolt connections, there are possibilities for bottlenecks, as Thunderbolt 2 maxes out at 2.5 GB/s. From the system configuration above, we actually see that the card is running on PCIe at 4x. Since thunderbolt 2 only supports PCIe 2 would usually be able to transfer at 2 GB/s, which for better or for worse within our theoritical bandwidth (You can argue that once you load in the data it wouldn't matter much after that point).</p>
 
-<p>Video cards get hot, especially with the stock cooler that comes with the Titan X. Usually decent radiators and cooling systems inside PCs can mitigate this problem. Since my box doesn't have any additional cooling, If I run the card for extended periods of time, which I hope to when training my models, I'm going to expect some extra throttling.</p>
+<p>Video cards get hot, especially with the stock cooler that comes with the Titan X. Usually decent radiators and cooling systems inside PCs can mitigate this problem. Since my box doesn't have any additional cooling, If I run the card for extended periods of time, which I hope to when training my models, I'm going to expect some extra thermal throttling, and thus a reduction in clock speeds.</p>
 
 <h3>
 <a id="performance-tests" class="anchor" href="#performance-tests" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Performance Tests</h3>
 
-<p>Regarless of the potential speed and thermal issues, I was quite pleased by how the card performed. Running <a href="http://deeplearning.net/tutorial/lenet.html">convolutional_mlp</a>, I was able to get a 45-50x speedup. </p>
+<p>Regardless of the potential speed and thermal issues, I was quite pleased by how the card performed. Running <a href="http://deeplearning.net/tutorial/lenet.html">convolutional_mlp</a>, I was able to get a 45-50x speedup. </p>
 
 <p><img src="http://i.imgur.com/2S7dG7E.png%20=500x300" alt="convmlp"></p>
 
-<p>Running some synthetic benchmarks (I might test other ones in the future), I got about the same score as a Titan X would in a rig (could be in the margin of error due to different CPUs, PCIe configs, RAM, etc.).</p>
+<p>Running some synthetic benchmarks (I might test and post other ones in the future), I got about the same score as a Titan X would in a rig (could be in the margin of error due to different CPUs, PCIe configs, RAM, etc.).</p>
 
 <p><img src="http://i.imgur.com/gYM4r9h.jpg%20=400x250" alt="OB"><img src="http://i.imgur.com/mGasect.png%20=400x250" alt="stats"></p>
 
-<p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From from the different configuartions I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook.</p>
+<p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From the different models I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook to the Titan X.</p>
+
+<p>So far these test have been relatively superficial, so I'm going to run some larger models with larger batch data sizes that I'm working with and maybe I can find other positive and negative aspects as I go along. I want to eventually also test this setup against other common large models with Alexnet and Google LeNet to see how these variables affect model training performance.</p>
 
       <footer class="site-footer">
         <span class="site-footer-owner"><a href="https://github.com/karans/iPinYouDNN">The eGPU Experience</a> is maintained by <a href="https://github.com/karans">karans</a>.</span>

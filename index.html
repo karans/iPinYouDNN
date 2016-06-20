@@ -35,6 +35,9 @@
 
 <p>There are a few companies that manufacture these solutions intended to host typical PCIe cards such as RAID cards or video capture cards, but don't supply enough power to run a GPU by default. Most people are able to take apart these platforms to add their own power supply and PCIe riser to overcome the power limit. Since I didn't want to spend too much time tinkering with the hardware, I opted for a prebuilt solution by <a href="https://bizon-tech.com/us/bizonbox2-egpu.html">Bizon</a>.</p>
 
+<p><img src="http://i.imgur.com/BXCvk3U.jpg%20=400x300" alt="Box">
+<img src="http://i.imgur.com/E4pyuJo.jpg%20=400x300" alt="Setup"></p>
+
 <h3>
 <a id="compatibility" class="anchor" href="#compatibility" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Compatibility</h3>
 
@@ -42,7 +45,7 @@
 
 <p>In terms of drivers, there setup was much easier than expected, as <a href="https://github.com/goalque/automate-eGPU">goalque</a> already wrote a script that detected the card, pulled the drivers from Nvidia and changed the appropriate IOPCI tunnelling files. When I rebooted the card was recognized!</p>
 
-<p><img src="http://i.imgur.com/1ARjUeV.png%20=500x500" alt="System Info"></p>
+<p><img src="http://i.imgur.com/1ARjUeV.png%20=400x400" alt="System Info"></p>
 
 <p>The reason why most people use Nvidia cards to run these sort of computations is due to CUDA. CUDA, proprietary to Nvidia, allows users to directly run code directly on the GPU. Many languages and packages targeted towards deep learning have integrated their libaries with CUDA to let users run demanding code on GPUs in the comfort of high level languages such as Python or Lua. Nvidia's cuDNN also optimizes many of the operations that occur during machine learning and have been utlized by libraries, such as Theano, as well. I then continued by installed CUDA (I recommend using the <a href="https://developer.nvidia.com/cuda-downloads">full</a> installation for those who just started) and cuDNN (you need to make a free developer account). </p>
 
@@ -56,13 +59,13 @@
 <h3>
 <a id="performance-tests" class="anchor" href="#performance-tests" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Performance Tests</h3>
 
-<p>Regarless of the potential speed and thermal issues, I was quite pleased by how the card performed. Running convolutional_mlp, I was able to get a 45-50x speedup. </p>
+<p>Regarless of the potential speed and thermal issues, I was quite pleased by how the card performed. Running <a href="http://deeplearning.net/tutorial/lenet.html">convolutional_mlp</a>, I was able to get a 45-50x speedup. </p>
 
 <p><img src="http://i.imgur.com/2S7dG7E.png%20=500x300" alt="convmlp"></p>
 
 <p>Running some synthetic benchmarks (I might test other ones in the future), I got about the same score as a Titan X would in a rig (could be in the margin of error due to different CPUs, PCIe configs, RAM, etc.).</p>
 
-<p><img src="http://i.imgur.com/gYM4r9h.jpg%20=500x300" alt="OB"><img src="http://i.imgur.com/mGasect.png%20=500x300" alt="stats"></p>
+<p><img src="http://i.imgur.com/gYM4r9h.jpg%20=400x250" alt="OB"><img src="http://i.imgur.com/mGasect.png%20=400x250" alt="stats"></p>
 
 <p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From from the different configuartions I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook.</p>
 

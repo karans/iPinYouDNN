@@ -44,8 +44,6 @@
 
 <p><img src="https://dl.dropboxusercontent.com/u/76057907/Screen%20Shot%202016-06-17%20at%208.50.33%20PM.png%20=500x500" alt="System Info"></p>
 
-<p><img src="http://www.gettyimages.pt/gi-resources/images/Homepage/Hero/PT/PT_hero_42_153645159.jpg" alt="test"></p>
-
 <p>The reason why most people use Nvidia cards to run these sort of computations is due to CUDA. CUDA, proprietary to Nvidia, allows users to directly run code directly on the GPU. Many languages and packages targeted towards deep learning have integrated their libaries with CUDA to let users run demanding code on GPUs in the comfort of high level languages such as Python or Lua. Nvidia's cuDNN also optimizes many of the operations that occur during machine learning and have been utlized by libraries, such as Theano, as well. I then continued by installed CUDA (I recommend using the <a href="https://developer.nvidia.com/cuda-downloads">full</a> installation for those who just started) and cuDNN (you need to make a free developer account). </p>
 
 <h3>
@@ -64,7 +62,8 @@
 
 <p>Running some synthetic benchmarks (I might test other ones in the future), I got about the same score as a Titan X would in a rig (could be in the margin of error due to different CPUs, PCIe configs, RAM, etc.).</p>
 
-<p><img src="https://dl.dropboxusercontent.com/u/76057907/Screen%20Shot%202016-06-19%20at%208.01.37%20PM.png%20=500x300" alt="OB"><img src="https://dl.dropboxusercontent.com/u/76057907/Screen%20Shot%202016-06-19%20at%208.00.29%20PM.png%20=500x300" alt="stats"></p>
+<p><img src="https://dl.dropboxusercontent.com/u/76057907/Screen%20Shot%202016-06-19%20at%208.01.37%20PM.png%20=500x300" alt="OB">
+<img src="https://dl.dropboxusercontent.com/u/76057907/Screen%20Shot%202016-06-19%20at%208.00.29%20PM.png%20=500x300" alt="stats"></p>
 
 <p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From from the different configuartions I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook.</p>
 

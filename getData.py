@@ -269,8 +269,8 @@ net = Network([
 		FullyConnectedLayer(n_in=464, n_out=200, weights = metadata[1], biases = metadata[2]),
         FullyConnectedLayer(n_in=200, n_out=200, weights = metadata[3], biases = metadata[4]),
         SoftmaxLayer(n_in=200, n_out=2, weights = metadata[5], biases = metadata[6])], mini_batch_size)
-net.SGD(training_data, 2000, mini_batch_size, .001, 
-            validation_data, test_data, training_outputs, '1458-200k-2')
+net.SGD(training_data, 2000, mini_batch_size, 1, 
+            validation_data, test_data, training_outputs, '1458-MLP')
 
 
 import network3

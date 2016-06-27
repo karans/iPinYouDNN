@@ -6,6 +6,8 @@ import random
 import sys
 import timeit
 from progressbar import *
+from multiprocessing.dummy import Pool as ThreadPool 
+
 
 def vectorized_result(j):
 	e = np.zeros((2, 1))
@@ -25,10 +27,10 @@ def getData(inputFile, isTestData, debug, nexamples = None):
 	posTextString = ''.join(str(x) for x in posTextTest)
 
 	array = testString.split()
-	if isTestData:
-		array = array[0:1450000]
-	else:
-		array = array[0:4050000] # due to small number of positive examples, we sample from the first 10k examples
+	if isTestData == False:
+	# 	array = array[0:1450000]
+	# else:
+		array = array[0:66528] # due to small number of positive examples, we sample from the first 10k examples
 
 	array[array == 'null'] = 0 # in case we run into any problems 
 
@@ -38,9 +40,9 @@ def getData(inputFile, isTestData, debug, nexamples = None):
 	#add the manually pulled pos examples form test data
 	posTestArray = posTextString.split()
 
-	if isTestData:
-		array.extend(posTestArray)
-	else:
+	if isTestData == False:
+	# 	array.extend(posTestArray)
+	# else:
 		array.extend(posArray)
 
 	samples = []
@@ -188,23 +190,49 @@ def getData(inputFile, isTestData, debug, nexamples = None):
 		outArray.append(example)
 		# print example, len(example)
 	print 'starting mean normalization'
-	for i in range(0,len(outArray[i])):
-		print 'mean normalizing var', i
-		totalVal = 0
-		minVal = outArray[0][i]
-		maxVal = outArray[0][i]
-		for j in range(0,len(outArray)):
-			totalVal += outArray[j][i]
-			if outArray[j][i] < minVal:
-				minVal = outArray[j][i]
-			if outArray[j][i] > maxVal:
-				maxVal = outArray[j][i]
-		deviation = maxVal - minVal
-		average = float(totalVal)/(len(outArray))
-		if deviation == 0:
-			deviation = 1
-		for j in range(0,len(outArray)):
-			outArray[j][i] = (outArray[j][i] - average)/deviation
+
+	def normalize(inArray):
+		for i in range(0,len(inArray[0])):
+			print 'mean normalizing var', i
+			totalVal = 0
+			minVal = inArray[0][i]
+			maxVal = inArray[0][i]
+			for j in range(0,len(inArray)):
+				totalVal += inArray[j][i]
+				if inArray[j][i] < minVal:
+					minVal = inArray[j][i]
+				if inArray[j][i] > maxVal:
+					maxVal = inArray[j][i]
+			deviation = maxVal - minVal
+			average = float(totalVal)/(len(inArray))
+			if deviation == 0:
+				deviation = 1
+			for j in range(0,len(inArray)):
+				inArray[j][i] = (inArray[j][i] - average)/deviation
+		return inArray
+
+	# outArray = normalize(outArray)
+	threads = 4
+	dividedVars = []
+	for i in xrange(0,threads):
+		varCollector = []
+		for example in outArray:
+			varCollector.append(example[i * (len(outArray[0]) / threads) : (i+1) * (len(outArray[0]) / threads)])
+		dividedVars.append(varCollector)
+
+	pool = ThreadPool(threads)
+
+	output = pool.map(normalize, dividedVars)
+	pool.close() 
+	pool.join() 
+
+	outArray = []
+	for i in xrange(0,len(output[0])):
+		varConcat = []
+		for j in xrange(0,len(output)):
+			varConcat.extend(output[j][i])	
+		outArray.append(varConcat)
+
 	print 'mean normalization complete'
 
 	print 'set size:', len(outArray)
@@ -226,12 +254,16 @@ trainfile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/tr
 testfile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/test.log.txt', 'r')
 posfile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/posData.txt', 'r')
 posTestFile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/posDataTest.txt', 'r')
-trainData = getData(trainfile, False, False, 50000) #3083056
+trainData = getData(trainfile, False, False, 4908) #3083056
 posfile.close()
 posTestFile.close()
 posfile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/posData.txt', 'r')
 posTestFile = open('/Users/karansamel/Documents/GitRepos/make-ipinyou-data/1458/posDataTest.txt', 'r')
-testData = getData(testfile, True, False, 10000) #614638
+
+f = open('data/1458FullTest-2.pckl')
+testData = pickle.load(f)
+f.close()
+# testData = getData(testfile, True, False, 614638) #614638
 testfile.close()
 trainfile.close()
 posfile.close()
@@ -242,14 +274,14 @@ posTestFile.close()
 # validation_data = testData
 # test_data = testData
 
-# training_data = (trainData[0][0: int(len(trainData[0]) * .5)], trainData[1][0: int(len(trainData[1]) * .5)])
-# validation_data = (trainData[0][int(len(trainData[0]) * .5): int(len(trainData[0]))], trainData[1][int(len(trainData[1]) * .5): int(len(trainData[1]))])
+# training_data = (trainData[0][0: int(len(trainData[0]) * .75)], trainData[1][0: int(len(trainData[1]) * .75)])
+# validation_data = (trainData[0][int(len(trainData[0]) * .75): int(len(trainData[0]))], trainData[1][int(len(trainData[1]) * .75): int(len(trainData[1]))])
 # test_data = (trainData[0][int(len(trainData[0]) * .5): int(len(trainData[0]))], trainData[1][int(len(trainData[1]) * .5): int(len(trainData[1]))])
 
-training_data = (trainData[0][0:40000], trainData[1][0:40000])
-validation_data = (trainData[0][40000:50000], trainData[1][40000: 50000])
+training_data = (trainData[0], trainData[1])
+validation_data = (trainData[0], trainData[1])
 test_data = testData
 
-f = open('data/1458partial60k.pckl', 'w')
+f = open('data/50PercentNeg.pckl', 'w')
 pickle.dump([training_data, validation_data, test_data], f)
 f.close()

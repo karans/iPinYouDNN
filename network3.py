@@ -33,7 +33,9 @@ import cPickle
 import pickle
 import gzip
 import sys
-import os.path
+import os
+import atexit
+
 
 # Third-party libraries
 import numpy as np
@@ -49,6 +51,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.metrics import mean_squared_error #have to sqrt after
 
 import timeit
+import datetime
 
 # Activation functions for neurons
 def linear(z): return z
@@ -57,22 +60,23 @@ from theano.tensor.nnet import sigmoid
 from theano.tensor import tanh
 
 
-#### Constants
-GPU = False
-if GPU:
-    print "Trying to run under a GPU.  If this is not desired, then modify "+\
-        "network3.py\nto set the GPU flag to False."
-    try: theano.config.device = 'gpu'   
-    except: pass # it's already set
-    theano.config.floatX = 'float32'
-else:
-    print "Running with a CPU.  If this is not desired, then the modify "+\
-        "network3.py to set\nthe GPU flag to True."
+print '\n[device =',theano.config.device, 'floatX =', theano.config.floatX, ']\n'
 
-theano.config.optimizer = 'None'
 net_metadata = [] # we want to store all our weights and permunations here so we can restart where we left off, just a list of arrays
+weightFile = 0
 
-#### Load the MNIST data
+def save_params():
+    f = open('weights/' + weightFile + '.pckl', 'w')
+    pickle.dump(net_metadata, f)
+    f.close()
+
+def save_at_exit():
+    print 'Saving metadata before exit'
+    save_params()
+
+atexit.register(save_at_exit)
+
+#Load Data
 def load_data_shared(filename, perm = None):
 
     f = open('data/' + filename + '.pckl')
@@ -85,8 +89,9 @@ def load_data_shared(filename, perm = None):
         permutation = perm
     else:
         permutation = np.random.permutation(len(training_data[0][0]))
-    # permuation = [1,  2,  4,  0,  8,  16, 3,  4,  6,  7,  9,  23, 10, 11, 14, 17, 18, 21, 12, 13, 15, 19, 20, 22]
-    print 'current permuation:', permutation
+    # 24 var permuation = [1,  2,  4,  0,  8,  16, 3,  4,  6,  7,  9,  23, 10, 11, 14, 17, 18, 21, 12, 13, 15, 19, 20, 22]
+    
+    #print 'current permuation:', permutation
     net_metadata.append(permutation)
     for i in xrange(0,len(training_data[0])):
         training_data[0][i] = training_data[0][i][permutation]
@@ -94,9 +99,13 @@ def load_data_shared(filename, perm = None):
         validation_data[0][i] = validation_data[0][i][permutation]
     for i in xrange(0,len(test_data[0])):
         test_data[0][i] = test_data[0][i][permutation]
-    print training_data[0][0]
 
     print 'finished shuffling'
+
+    print np.count_nonzero(training_data[1] == 1), 'training positives'
+    print np.count_nonzero(validation_data[1] == 1), 'validation positives'
+    print np.count_nonzero(test_data[1] == 1), 'test positives'
+
 
     def shared(data):
         """Place the data into shared variables.  This allows Theano to copy
@@ -108,8 +117,6 @@ def load_data_shared(filename, perm = None):
         shared_y = theano.shared(
             np.asarray(data[1], dtype=theano.config.floatX), borrow=True)
         return shared_x, T.cast(shared_y, "int32")
-        #return shared_x, shared_y
-    print np.count_nonzero(training_data[1] == 1), 'positives' #friendly reminder that this number will be less than the output from the data parser, since that one includes CV data
     return [shared(training_data), shared(validation_data), shared(test_data), training_data[1]]
 
 #### Main class used to construct and train networks
@@ -137,19 +144,23 @@ class Network(object):
                 prev_layer.output, prev_layer.output_dropout, self.mini_batch_size)
         self.output = self.layers[-1].output
         self.output_dropout = self.layers[-1].output_dropout
+        self.actualOutput = []
+        self.predictedOutput = []
 
     def SGD(self, training_data, epochs, mini_batch_size, eta,
-            validation_data, test_data, training_outputs, weight_file, variable_updates = False, lmbda=0.0):
+            validation_data, test_data, training_outputs, weight_file = None, variable_updates = False, log_file=None, lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
         training_x, training_y = training_data #try to push changes harder made by positive examples,
         validation_x, validation_y = validation_data
         test_x, test_y = test_data
 
+        global weightFile, net_metadata
+        weightFile = weight_file
+
         # compute number of minibatches for training, validation and testing
-        print 'size(training_data):',size(training_data)
-        print 'size(vaidation_data):',size(validation_data)
-        print 'size(training_data):', size(test_data)
-        print np.count_nonzero(training_outputs == 1), 'positives'
+        print 'size of the training data:',size(training_data)
+        print 'size of the vaidation data:',size(validation_data)
+        print 'size of the testing data:', size(test_data)
 
         num_training_batches = size(training_data)/mini_batch_size
         num_validation_batches = size(validation_data)/mini_batch_size
@@ -162,6 +173,7 @@ class Network(object):
         grads = T.grad(cost, self.params)
         updates = [(param, param-eta*grad)
                    for param, grad in zip(self.params, grads)]
+        updatesOne = [(param, param-grad) for param, grad in zip(self.params, grads)] #if we are at .5 ROC just keep eta at 1 to move it along
         """
         amplify cost function for positive ex, so net has to make more drastic changes
         I'm too dumb to find a better solution
@@ -193,6 +205,14 @@ class Network(object):
                 self.y:
                 training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
             })
+        train_mbOne = theano.function(
+            [i], cost, updates=updatesOne,
+            givens={
+                self.x:
+                training_x[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.y:
+                training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
+            })
         validate_mb_accuracy = theano.function( # find a way to get the 'y' for the current example
             [i], self.layers[-1].accuracy(self.y),
             givens={
@@ -218,6 +238,14 @@ class Network(object):
                 self.y:
                 test_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
             })
+        validate_mb_f1 = theano.function(
+            [i], self.layers[-1].f1score(self.y),
+            givens={
+                self.x:
+                validation_x[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.y:
+                validation_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
+            })
 
         self.test_mb_predictions = theano.function(
             [i], self.layers[-1].y_out,
@@ -234,11 +262,30 @@ class Network(object):
         best_iteration = 0.0
         test_accuracy = 0.0
         start = timeit.default_timer();
+
+        if log_file is not None:
+            try:
+                os.remove(log_file + '.txt')
+            except OSError:
+                pass
+
+        def update_params():
+            if weight_file is not None:
+                print 'updating parameters'
+                for x in xrange (0, len(self.layers)):
+                    # print 'updating ', type(self.layers[x])
+                    net_metadata[2 * x + 1] = self.layers[x].w
+                    net_metadata[2 * x + 2] = self.layers[x].b
+
+        times = open('scores/' + log_file + '.txt', 'w')
+        sinceLastTest = timeit.default_timer()
         for epoch in xrange(epochs):
             for minibatch_index in xrange(num_training_batches):
                 iteration = num_training_batches*epoch+minibatch_index
                 if iteration % 1000 == 0:
                     print("Training mini-batch number {0}".format(iteration))
+                    stop = timeit.default_timer();
+                    print "{:0>8}".format(datetime.timedelta(seconds=(stop - start))), 'elapsed'
                 batch_outputs =  training_outputs[minibatch_index * mini_batch_size: (minibatch_index + 1) * mini_batch_size ]
                 if variable_updates:
                     if 1 in batch_outputs and best_roc_score < .93: # after some point, drastically increasing costs will mess up training?
@@ -246,50 +293,57 @@ class Network(object):
                     else:
                         cost_ij = train_mb(minibatch_index)
                 else:
-                    cost_ij = train_mb(minibatch_index)
-
-                if (iteration+1) % num_training_batches == 0:
+                    if best_roc_score <= .5:
+                        cost_ij = train_mbOne(minibatch_index)
+                    else:
+                        cost_ij = train_mb(minibatch_index)
+                # if (iteration+1) % num_training_batches == 0:
+                if (timeit.default_timer() - sinceLastTest)/60 >= 15: #i want it to test every few mins
                     allActual = []
                     allPredicted = []
-                    validation_accuracy = np.mean(
-                        [validate_mb_accuracy(j) for j in xrange(num_validation_batches)])
-                    print("Epoch {0}: validation accuracy {1:.5%}".format(epoch, validation_accuracy))
-                    if validation_accuracy >= best_validation_accuracy:
-                        print("This is the best validation accuracy to date.")
-                        best_validation_accuracy = validation_accuracy
-                        best_iteration = iteration
-                        if test_data:  
-                            test_accuracy = np.mean(
-                                [test_mb_accuracy(j) for j in xrange(num_test_batches)])
-                            print('The corresponding test accuracy is {0:.5%}'.format(test_accuracy))
-                    actualOutput = [test_mb_f1(i)[0] for i in xrange(num_test_batches)]
-                    for x in xrange (0, len(actualOutput)):
+                    #validation
+                    self.actualOutput = [validate_mb_f1(i)[0] for i in xrange(num_validation_batches)]
+                    for x in xrange (0, len(self.actualOutput)):
                         for y in xrange (0, mini_batch_size):
-                            allActual.append(actualOutput[x][y])
-                    predictedOutput = [test_mb_f1(i)[1] for i in xrange(num_test_batches)]
-                    for x in xrange (0, len(predictedOutput)):
+                            allActual.append(self.actualOutput[x][y])
+                    self.predictedOutput = [validate_mb_f1(i)[1] for i in xrange(num_validation_batches)]
+                    for x in xrange (0, len(self.predictedOutput)):
                         for y in xrange (0, mini_batch_size):
-                            allPredicted.append(predictedOutput[x][y])
+                            allPredicted.append(self.predictedOutput[x][y])
+                    validation_roc_score = roc_auc_score(allActual, allPredicted)
+                    print '\n', 'Epoch', epoch, ': Current validation ROC score is',validation_roc_score
+
+                    #testing
+                    self.actualOutput = [test_mb_f1(i)[0] for i in xrange(num_test_batches)]
+                    for x in xrange (0, len(self.actualOutput)):
+                        for y in xrange (0, mini_batch_size):
+                            allActual.append(self.actualOutput[x][y])
+                    self.predictedOutput = [test_mb_f1(i)[1] for i in xrange(num_test_batches)]
+                    for x in xrange (0, len(self.predictedOutput)):
+                        for y in xrange (0, mini_batch_size):
+                            allPredicted.append(self.predictedOutput[x][y])
                     roc_score = roc_auc_score(allActual, allPredicted)
                     rmse = mean_squared_error(allActual, allPredicted)**0.5
                     if roc_score > best_roc_score:
                         best_roc_score = roc_score
                     if rmse < best_rmse:
                         best_rmse = rmse
-                    print('Current ROC score is {0:.5%}'.format(roc_score))
-                    print('The best ROC score is {0:.5%}'.format(best_roc_score))
+                    print 'Current test ROC score is', roc_score
+                    print 'The best test ROC score is', best_roc_score, '\n'
+
+                    stop = timeit.default_timer();
+                    times.write(str((stop - start)/60) + '\t' + str(roc_score) + '\t' + str(validation_roc_score) + '\n')
+                    
                     #save the metadata ocassionally 
-                    for x in xrange (0, len(self.layers)):
-                        print 'updating ', type(self.layers[x])
-                        net_metadata[2 * x + 1] = self.layers[x].w
-                        net_metadata[2 * x + 2] = self.layers[x].b
-                        f = open('weights/' + weight_file + '.pckl', 'w')
-                        pickle.dump(net_metadata, f)
-                        f.close()
+                    update_params()
+                    save_params()
+                    sinceLastTest = timeit.default_timer()
 
 
 
         stop = timeit.default_timer();
+        times.close()
+        save_params()
         # print allActual
         # print allPredicted
         print("Finished training network.")
@@ -452,7 +506,6 @@ class SoftmaxLayer(object):
     def getTrainY(self):
         "Return the F1 score for the mini-batch."
         return (y)
-
 
 #### Miscellanea
 def size(data):

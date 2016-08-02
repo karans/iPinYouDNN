@@ -67,7 +67,7 @@
 
 <p><img src="http://i.imgur.com/gYM4r9h.jpg%20=400x250" alt="OB"><img src="http://i.imgur.com/mGasect.png%20=400x250" alt="stats"></p>
 
-<p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From the different models I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook to the Titan X.</p>
+<p>Finally when testing out my personal code, after adjusting some of the CUDA and Theano global variables, I got it to work smoothly. From the different models I was testing, MLP, CNN, RNN, I was able to get around a 23-30x speedup from the i7-4870HQ in my MacBook to the Titan X. Running a CNN with 2 convolution layers and 2 hidden layers on an expanded MNIST data set led to a 60x boost on average per epoch.</p>
 
 <p>So far these test have been relatively superficial, so I'm going to run some larger models with larger batch data sizes that I'm working with and maybe I can find other positive and negative aspects as I go along. I want to eventually also test this setup against other common large models with Alexnet and Google LeNet to see how these variables affect model training performance.</p>
 

@@ -1,30 +1,9 @@
 """network3.py
-~~~~~~~~~~~~~~
+Neural network and convolution classes used for running models.
+This is modified code based on Michael Nielsen's sample code: (https://github.com/mnielsen/neural-networks-and-deep-learning)
 
-A Theano-based program for training and running simple neural
-networks.
-
-Supports several layer types (fully connected, convolutional, max
-pooling, softmax), and activation functions (sigmoid, tanh, and
-rectified linear units, with more easily added).
-
-When run on a CPU, this program is much faster than network.py and
-network2.py.  However, unlike network.py and network2.py it can also
-be run on a GPU, which makes it faster still.
-
-Because the code is based on Theano, the code is different in many
-ways from network.py and network2.py.  However, where possible I have
-tried to maintain consistency with the earlier programs.  In
-particular, the API is similar to network2.py.  Note that I have
-focused on making the code simple, easily readable, and easily
-modifiable.  It is not optimized, and omits many desirable features.
-
-This program incorporates ideas from the Theano documentation on
-convolutional neural nets (notably,
-http://deeplearning.net/tutorial/lenet.html ), from Misha Denil's
-implementation of dropout (https://github.com/mdenil/dropout ), and
-from Chris Olah (http://colah.github.io ).
-
+Extra features include weight saving, logging, epoch and learning rate tuning, ROC_AUC evaluation, and various activation functions.
+Code is stil in development to reflect my current reserach. 
 """
 
 #### Libraries
@@ -44,7 +23,8 @@ import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
-from theano.tensor.signal import downsample
+# from theano.tensor.signal import downsample
+from theano.tensor.signal.pool import pool_2d
 
 from sklearn.metrics import f1_score
 from sklearn.metrics import roc_auc_score
@@ -66,7 +46,7 @@ net_metadata = [] # we want to store all our weights and permunations here so we
 weightFile = 0
 
 def save_params():
-    f = open('weights/' + weightFile + '.pckl', 'w')
+    f = open('weights/' + weightFile + '.pckl', 'wb')
     pickle.dump(net_metadata, f)
     f.close()
 
@@ -74,36 +54,47 @@ def save_at_exit():
     print 'Saving metadata before exit'
     save_params()
 
-atexit.register(save_at_exit)
+# atexit.register(save_at_exit)
 
 #Load Data
 def load_data_shared(filename, perm = None):
 
     f = open('data/' + filename + '.pckl')
-    # f = open('data/1458partial60k.pckl')
     training_data, validation_data, test_data = pickle.load(f)
-    f.close()
-    # return [training_data, validation_data, test_data]
+    f.close()    
+
+    #want to shuffle train and cv set for any n-fold cross validation
+    print 'Generating new test-validation combination'
+    
+    fullData = (np.concatenate((training_data[0],validation_data[0])),np.concatenate((training_data[1],validation_data[1])))
+    cvPerm = np.random.permutation(len(fullData[0]))
+
+    newX = fullData[0][cvPerm]
+    newY = fullData[1][cvPerm]
+
+    training_data_S = (newX[0:int(len(newX)*.8)], newY[0:int(len(newY)*.8)])
+    validation_data_S = (newX[int(len(newX)*.8):], newY[int(len(newY)*.8):])
 
     if perm != None:
         permutation = perm
     else:
-        permutation = np.random.permutation(len(training_data[0][0]))
-    # 24 var permuation = [1,  2,  4,  0,  8,  16, 3,  4,  6,  7,  9,  23, 10, 11, 14, 17, 18, 21, 12, 13, 15, 19, 20, 22]
+        permutation = np.random.permutation(len(training_data_S[0][0]))
     
     #print 'current permuation:', permutation
     net_metadata.append(permutation)
-    for i in xrange(0,len(training_data[0])):
-        training_data[0][i] = training_data[0][i][permutation]
-    for i in xrange(0,len(validation_data[0])):
-        validation_data[0][i] = validation_data[0][i][permutation]
+
+    # We orignally tried randomly shuffling the data (permuation) to see if convolution layers would develop strong features.
+
+    for i in xrange(0,len(training_data_S[0])):
+        training_data_S[0][i] = training_data_S[0][i][permutation]
+    for i in xrange(0,len(validation_data_S[0])):
+        validation_data_S[0][i] = validation_data_S[0][i][permutation]
     for i in xrange(0,len(test_data[0])):
         test_data[0][i] = test_data[0][i][permutation]
-
     print 'finished shuffling'
 
-    print np.count_nonzero(training_data[1] == 1), 'training positives'
-    print np.count_nonzero(validation_data[1] == 1), 'validation positives'
+    print np.count_nonzero(training_data_S[1] == 1), 'training positives'
+    print np.count_nonzero(validation_data_S[1] == 1), 'validation positives'
     print np.count_nonzero(test_data[1] == 1), 'test positives'
 
 
@@ -117,7 +108,7 @@ def load_data_shared(filename, perm = None):
         shared_y = theano.shared(
             np.asarray(data[1], dtype=theano.config.floatX), borrow=True)
         return shared_x, T.cast(shared_y, "int32")
-    return [shared(training_data), shared(validation_data), shared(test_data), training_data[1]]
+    return [shared(training_data_S), shared(validation_data_S), shared(test_data), training_data_S[1]]
 
 #### Main class used to construct and train networks
 class Network(object):
@@ -173,11 +164,8 @@ class Network(object):
         grads = T.grad(cost, self.params)
         updates = [(param, param-eta*grad)
                    for param, grad in zip(self.params, grads)]
-        updatesOne = [(param, param-grad) for param, grad in zip(self.params, grads)] #if we are at .5 ROC just keep eta at 1 to move it along
+        updatesOne = [(param, param- grad) for param, grad in zip(self.params, grads)] #if we are at .5 ROC just keep eta at 1 to move it along
         """
-        amplify cost function for positive ex, so net has to make more drastic changes
-        I'm too dumb to find a better solution
-
         best to use smaller batches, ie larger batch sizes, so less negative examples will be amiplified
         """
         costP = 5*self.layers[-1].cost(self)+\
@@ -246,6 +234,14 @@ class Network(object):
                 self.y:
                 validation_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
             })
+        train_mb_f1 = theano.function(
+            [i], self.layers[-1].f1score(self.y),
+            givens={
+                self.x:
+                training_x[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.y:
+                training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
+            })
 
         self.test_mb_predictions = theano.function(
             [i], self.layers[-1].y_out,
@@ -256,11 +252,13 @@ class Network(object):
 
         # Do the actual training
 
-        best_validation_accuracy = 0.0
+        best_validation_roc = 0.0
         best_roc_score = 0.0
+        best_test_roc_score = 0.0
         best_rmse = 1.0
-        best_iteration = 0.0
-        test_accuracy = 0.0
+        test_roc_score = 0.0
+        validation_roc_score = 0.0
+        cost_ij = 0.0
         start = timeit.default_timer();
 
         if log_file is not None:
@@ -271,18 +269,71 @@ class Network(object):
 
         def update_params():
             if weight_file is not None:
-                print 'updating parameters'
+                # print 'updating parameters'
                 for x in xrange (0, len(self.layers)):
                     # print 'updating ', type(self.layers[x])
                     net_metadata[2 * x + 1] = self.layers[x].w
                     net_metadata[2 * x + 2] = self.layers[x].b
+        def train_roc():
+            allActual = []
+            allPredicted = []
+            #validation
+            self.actualOutput = [train_mb_f1(i)[0] for i in xrange(num_training_batches)]
+            for x in xrange (0, len(self.actualOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allActual.append(self.actualOutput[x][y])
+            self.predictedOutput = [train_mb_f1(i)[1] for i in xrange(num_training_batches)]
+            for x in xrange (0, len(self.predictedOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allPredicted.append(self.predictedOutput[x][y])
+            return roc_auc_score(allActual, allPredicted)
+        def validation_roc():
+            allActual = []
+            allPredicted = []
+            #validation
+            self.actualOutput = [validate_mb_f1(i)[0] for i in xrange(num_validation_batches)]
+            for x in xrange (0, len(self.actualOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allActual.append(self.actualOutput[x][y])
+            self.predictedOutput = [validate_mb_f1(i)[1] for i in xrange(num_validation_batches)]
+            for x in xrange (0, len(self.predictedOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allPredicted.append(self.predictedOutput[x][y])
+            return roc_auc_score(allActual, allPredicted)
 
-        times = open('scores/' + log_file + '.txt', 'w')
+        def test_roc():
+            allActual = []
+            allPredicted = []
+            self.actualOutput = [test_mb_f1(i)[0] for i in xrange(num_test_batches)]
+            for x in xrange (0, len(self.actualOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allActual.append(self.actualOutput[x][y])
+            self.predictedOutput = [test_mb_f1(i)[1] for i in xrange(num_test_batches)]
+            for x in xrange (0, len(self.predictedOutput)):
+                for y in xrange (0, mini_batch_size):
+                    allPredicted.append(self.predictedOutput[x][y]) 
+            return (roc_auc_score(allActual, allPredicted), mean_squared_error(allActual, allPredicted)**0.5)           
+
+
         sinceLastTest = timeit.default_timer()
+
+        validation_roc_score = validation_roc()
+        print '\n', 'Initial validation ROC score is',validation_roc_score
+        test_roc_score, best_rmse = test_roc()
+        best_roc_score = test_roc_score
+        update_params()
+        save_params()
+        print 'Current test ROC score is', test_roc_score, '\n'
+
+        times = open('scores/' + log_file + '.txt', 'a')
+        times.write('epoch' + '\t' + 'time elapsed' + '\t' + 'training_roc' + '\t' + 'validation_roc' + '\t' + 'test_roc' '\t' + 'best_test_roc' + '\n')
+        times.close()
+
+
         for epoch in xrange(epochs):
             for minibatch_index in xrange(num_training_batches):
                 iteration = num_training_batches*epoch+minibatch_index
-                if iteration % 1000 == 0:
+                if iteration % 100000 == 0:
                     print("Training mini-batch number {0}".format(iteration))
                     stop = timeit.default_timer();
                     print "{:0>8}".format(datetime.timedelta(seconds=(stop - start))), 'elapsed'
@@ -293,69 +344,57 @@ class Network(object):
                     else:
                         cost_ij = train_mb(minibatch_index)
                 else:
-                    if best_roc_score <= .5:
-                        cost_ij = train_mbOne(minibatch_index)
-                    else:
-                        cost_ij = train_mb(minibatch_index)
+                    # if best_roc_score <= .5:
+                    #     cost_ij = train_mbOne(minibatch_index)
+                    # else:
+                    cost_ij = train_mb(minibatch_index)
                 # if (iteration+1) % num_training_batches == 0:
-                if (timeit.default_timer() - sinceLastTest)/60 >= 15: #i want it to test every few mins
-                    allActual = []
-                    allPredicted = []
-                    #validation
-                    self.actualOutput = [validate_mb_f1(i)[0] for i in xrange(num_validation_batches)]
-                    for x in xrange (0, len(self.actualOutput)):
-                        for y in xrange (0, mini_batch_size):
-                            allActual.append(self.actualOutput[x][y])
-                    self.predictedOutput = [validate_mb_f1(i)[1] for i in xrange(num_validation_batches)]
-                    for x in xrange (0, len(self.predictedOutput)):
-                        for y in xrange (0, mini_batch_size):
-                            allPredicted.append(self.predictedOutput[x][y])
-                    validation_roc_score = roc_auc_score(allActual, allPredicted)
-                    print '\n', 'Epoch', epoch, ': Current validation ROC score is',validation_roc_score
 
+                if (timeit.default_timer() - sinceLastTest)/60 >= 2: #time till next test in minutes
+                    
+                    #cross validation
+                    training_roc_score = train_roc()
+                    validation_roc_score = validation_roc()
+                    print '\n', 'Epoch', epoch, ': Current training ROC score is',training_roc_score
+                    print 'Current validation ROC score is',validation_roc_score
                     #testing
-                    self.actualOutput = [test_mb_f1(i)[0] for i in xrange(num_test_batches)]
-                    for x in xrange (0, len(self.actualOutput)):
-                        for y in xrange (0, mini_batch_size):
-                            allActual.append(self.actualOutput[x][y])
-                    self.predictedOutput = [test_mb_f1(i)[1] for i in xrange(num_test_batches)]
-                    for x in xrange (0, len(self.predictedOutput)):
-                        for y in xrange (0, mini_batch_size):
-                            allPredicted.append(self.predictedOutput[x][y])
-                    roc_score = roc_auc_score(allActual, allPredicted)
-                    rmse = mean_squared_error(allActual, allPredicted)**0.5
-                    if roc_score > best_roc_score:
-                        best_roc_score = roc_score
+                    
+                    test_roc_score, rmse = test_roc()
+                    if validation_roc_score > best_roc_score:
+                        best_roc_score = validation_roc_score
+                        best_test_roc_score = test_roc_score
+                        update_params()
+                        save_params()
+                        f = open('weights/network.pckl', 'wb')
+                        pickle.dump(net_metadata, f)
+                        f.close()
                     if rmse < best_rmse:
                         best_rmse = rmse
-                    print 'Current test ROC score is', roc_score
-                    print 'The best test ROC score is', best_roc_score, '\n'
+                    print 'Current test ROC score is', test_roc_score
+                    print 'The best test ROC score is', best_test_roc_score
+                    print 'weight file =',weight_file, ' log file = ', log_file, '\n' 
 
                     stop = timeit.default_timer();
-                    times.write(str((stop - start)/60) + '\t' + str(roc_score) + '\t' + str(validation_roc_score) + '\n')
+                    
+                    times = open('scores/' + log_file + '.txt', 'a')
+                    times.write(str(epoch) + '\t' + str((stop - start)/60) + '\t' + str(training_roc_score) + '\t' + str(validation_roc_score) + '\t' + str(test_roc_score)+ '\t' + str(best_test_roc_score)+ '\n')
+                    times.close()
                     
                     #save the metadata ocassionally 
-                    update_params()
-                    save_params()
                     sinceLastTest = timeit.default_timer()
+            if epoch in xrange(0,11):
+                print 'Epoch', epoch, 'with cost of', cost_ij
 
 
 
         stop = timeit.default_timer();
-        times.close()
-        save_params()
         # print allActual
         # print allPredicted
         print("Finished training network.")
         print "Took ", "{:0>8}".format(datetime.timedelta(seconds=(stop - start)))
         print "F1 score ", f1_score(allActual, allPredicted)
         print "ROC AUC ", best_roc_score
-        # print "ROC AUC ", roc_auc_score(allActual[len(allActual) - 500: len(allActual)], allPredicted[len(allPredicted) - 500: len(allPredicted)])
         print "RMSE ", best_rmse
-        # print "RMSE ",mean_squared_error(allActual[len(allActual) - 500: len(allActual)], allPredicted[len(allPredicted) - 500: len(allPredicted)])**0.5
-        print("Best validation accuracy of {0:.5%} obtained at iteration {1}".format(
-            best_validation_accuracy, best_iteration))
-        print("Corresponding test accuracy of {0:.5%}".format(test_accuracy))
 
 #### Define layer types
 
@@ -393,8 +432,8 @@ class ConvPoolLayer(object):
         else: 
             self.w = theano.shared(
                 np.asarray(
-                    # np.random.normal(loc=0, scale=np.sqrt(1.0/n_out), size=filter_shape),
-                    np.ones(filter_shape),
+                    np.random.normal(loc=0, scale=np.sqrt(1.0/n_out), size=filter_shape),
+                    # np.ones(filter_shape),
                     dtype=theano.config.floatX), name='w',
                 borrow=True)
         if biases != None:
@@ -412,7 +451,7 @@ class ConvPoolLayer(object):
         conv_out = conv.conv2d(
             input=self.inpt, filters=self.w, filter_shape=self.filter_shape,
             image_shape=self.image_shape)
-        pooled_out = downsample.max_pool_2d(
+        pooled_out = pool_2d(
             input=conv_out, ds=self.poolsize, ignore_border=True)
         self.output = self.activation_fn(
             pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
@@ -431,10 +470,23 @@ class FullyConnectedLayer(object):
         if weights != None:
             self.w = weights
         else:
+            # self.w = theano.shared(
+            #     np.asarray(
+            #         np.random.normal(
+            #             loc=0.0, scale=np.sqrt(1.0/n_out), size=(n_in, n_out)),
+            #         dtype=theano.config.floatX),
+            #     name='w', borrow=True)
+            #tanh initialization
+            # self.w = theano.shared(
+            #     np.asarray(
+            #         np.random.uniform(
+            #             low=-(float(6)/(n_in + n_out))**.5, high=(float(6)/(n_in + n_out))**.5, size=(n_in, n_out)),
+            #         dtype=theano.config.floatX),
+            #     name='w', borrow=True)
             self.w = theano.shared(
                 np.asarray(
-                    np.random.normal(
-                        loc=0.0, scale=np.sqrt(1.0/n_out), size=(n_in, n_out)),
+                    np.random.uniform(
+                        low=-4*(float(6)/(n_in + n_out))**.5, high=4*(float(6)/(n_in + n_out))**.5, size=(n_in, n_out)),
                     dtype=theano.config.floatX),
                 name='w', borrow=True)
 
@@ -451,6 +503,7 @@ class FullyConnectedLayer(object):
         self.inpt = inpt.reshape((mini_batch_size, self.n_in))
         self.output = self.activation_fn(
             (1-self.p_dropout)*T.dot(self.inpt, self.w) + self.b)
+        # self.output = 1.7159*tanh((float(2)/3)*T.dot(self.inpt, self.w) + self.b)
         self.y_out = T.argmax(self.output, axis=1)
         self.inpt_dropout = dropout_layer(
             inpt_dropout.reshape((mini_batch_size, self.n_in)), self.p_dropout)

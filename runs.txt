@@ -1,0 +1,125 @@
+1458
+Epoch 1135 : Current training ROC score is 1.0
+Current validation ROC score is 0.978848571042
+Current test ROC score is 0.935388217853
+The best test ROC score is 0.935388217853
+weight file = 1458  log file =  1458 
+
+2259
+Epoch 3539 : Current training ROC score is 1.0
+Current validation ROC score is 0.990922294844
+Current test ROC score is 0.515805702202
+The best test ROC score is 0.515805702202
+weight file = 2259  log file =  2259 
+
+2261
+Epoch 2969 : Current training ROC score is 1.0
+Current validation ROC score is 0.99409025788
+Current test ROC score is 0.505143481136
+The best test ROC score is 0.505143481136
+weight file = 2261CNN  log file =  2261CNN 
+
+2821
+Epoch 2160 : Current training ROC score is 0.999832523865
+Current validation ROC score is 0.975178571429
+Current test ROC score is 0.514514351067
+The best test ROC score is 0.514514351067
+weight file = 2821CNN  log file =  2821CNN 
+
+2997
+Epoch 3441 : Current training ROC score is 0.991929806292
+Current validation ROC score is 0.763156733522
+Current test ROC score is 0.515771349444
+The best test ROC score is 0.515771349444
+
+3358 rmake uptil here
+Epoch 2763 : Current training ROC score is 0.999631947
+Current validation ROC score is 0.983496621123
+Current test ROC score is 0.850326610922
+The best test ROC score is 0.850326610922
+weight file = 3358  log file =  3358 
+
+3386
+Epoch 1164 : Current training ROC score is 1.0
+Current validation ROC score is 0.943482868244
+Current test ROC score is 0.566418771409
+The best test ROC score is 0.566418771409
+weight file = 3386CNN  log file =  3386CNN 
+
+3427
+Epoch 1803 : Current training ROC score is 1.0
+Current validation ROC score is 0.974865047233
+Current test ROC score is 0.868944538291
+The best test ROC score is 0.868989286527
+weight file = 3427CNN  log file =  3427CNN 
+
+3476
+Epoch 3372 : Current training ROC score is 1.0
+Current validation ROC score is 0.981338028169
+Current test ROC score is 0.777973272777
+The best test ROC score is 0.777973272777
+weight file = 3476CNN  log file =  3476CNN 
+
+MLP
+1458
+Epoch 1738 : Current training ROC score is 0.997577578165
+Current validation ROC score is 0.974173966573
+Current test ROC score is 0.931179830257
+The best test ROC score is 0.931179830257
+weight file = 1458MLP  log file =  1458MLP
+
+2259 
+Epoch 3091 : Current training ROC score is 0.992691363004
+Current validation ROC score is 0.979454545455
+Current test ROC score is 0.528410074345
+The best test ROC score is 0.528410074345
+weight file = 2259MLP  log file =  2259MLP 
+
+2261
+Epoch 3043 : Current training ROC score is 0.999957580385
+Current validation ROC score is 0.995007132668
+Current test ROC score is 0.498935607046
+The best test ROC score is 0.498935607046
+weight file = 2261MLP  log file =  2261MLP 
+
+2821
+Epoch 2446 : Current training ROC score is 0.999706523562
+Current validation ROC score is 0.97691884091
+Current test ROC score is 0.522620791097
+The best test ROC score is 0.524985237434
+weight file = 2821MLP  log file =  2821MLP 
+
+2997
+Epoch 6326 : Current training ROC score is 0.977249541394
+Current validation ROC score is 0.917552969419
+Current test ROC score is 0.503525281223
+The best test ROC score is 0.503525281223
+weight file = 2997MLP  log file =  2997MLP 
+
+3358
+Epoch 2090 : Current training ROC score is 0.996583048587
+Current validation ROC score is 0.977121900105
+Current test ROC score is 0.850720642117
+The best test ROC score is 0.850720642117
+weight file = 3358MLP  log file =  3358MLP 
+
+3386
+Epoch 3334 : Current training ROC score is 1.0
+Current validation ROC score is 0.941003246008
+Current test ROC score is 0.570360061685
+The best test ROC score is 0.568017099443
+weight file = 3386MLP  log file =  3386MLP 
+
+3427
+Epoch 2292 : Current training ROC score is 0.999873471109
+Current validation ROC score is 0.978925900748
+Current test ROC score is 0.853366849272
+The best test ROC score is 0.853056041602
+weight file = 3427MLP  log file =  3427MLP
+
+3476
+Epoch 1898 : Current training ROC score is 1.0
+Current validation ROC score is 0.981164383562
+Current test ROC score is 0.788934173874
+The best test ROC score is 0.788934173874
+weight file = 3476MLP  log file =  3476MLP 
